@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>小小數獨</title>
+<title>Kids Sudoku</title>
 <style>
   :root {
     --bg: #fdf6ec;
@@ -86,7 +86,7 @@
 </style>
 </head>
 <body>
-  <h1>小小數獨</h1>
+  <h1>Kids Sudoku</h1>
 
   <div class="sizes">
     <button data-n="4" class="active">4×4</button>
@@ -95,11 +95,11 @@
   </div>
 
   <div id="grid"></div>
-  <div id="winMsg">🎉 太棒了，完成！</div>
+  <div id="winMsg">🎉 Great job!</div>
   <div class="pad" id="pad"></div>
 
   <div class="actions">
-    <button id="newBtn">新遊戲</button>
+    <button id="newBtn">New Game</button>
   </div>
 
 <script>
@@ -202,7 +202,7 @@
       padEl.appendChild(b);
     }
     const e = document.createElement('button');
-    e.textContent = '清除';
+    e.textContent = 'Erase';
     e.className = 'erase';
     e.addEventListener('pointerdown', () => input(0));
     padEl.appendChild(e);
