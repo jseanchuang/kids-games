@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>數字推盤 8-Puzzle</title>
+<title>Number Slide Puzzle</title>
 <style>
   :root {
     --bg: #10151f;
@@ -101,16 +101,16 @@
 </style>
 </head>
 <body>
-  <h1>數字推盤</h1>
+  <h1>Slide Puzzle</h1>
 
   <div class="stats">
-    <div class="stat"><div class="label">步數</div><div class="value" id="moves">0</div></div>
-    <div class="stat"><div class="label">時間</div><div class="value" id="time">0:00</div></div>
+    <div class="stat"><div class="label">MOVES</div><div class="value" id="moves">0</div></div>
+    <div class="stat"><div class="label">TIME</div><div class="value" id="time">0:00</div></div>
   </div>
 
   <div id="board"></div>
-  <div id="winMsg">🎉 完成！</div>
-  <button id="shuffleBtn">重新開始</button>
+  <div id="winMsg">🎉 You did it!</div>
+  <button id="shuffleBtn">New Game</button>
 
 <script>
 (function () {
