@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Make 10 Balloons</title>
+<style>
+  :root {
+    --bg-top: #aee3ff;
+    --bg-bottom: #e8f7ff;
+    --ink: #2b4a66;
+    --sub: #6f93ad;
+    --good: #43a86f;
+    --accent: #f2707a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; }
+  body {
+    background: linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+    color: var(--ink);
+    font-family: "Avenir Next", "PingFang TC", system-ui, sans-serif;
+    touch-action:manipulation; user-select:none; -webkit-user-select:none;
+  }
+
+  #hud {
+    position:fixed; top:0; left:0; right:0; z-index:10;
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    padding:10px 12px; flex-wrap:wrap;
+    background:rgba(255,255,255,0.78);
+    backdrop-filter: blur(6px);
+    box-shadow:0 2px 10px rgba(43,74,102,0.12);
+  }
+  #hud .title { font-weight:700; font-size:1.05rem; letter-spacing:0.03em; }
+  #hud .target {
+    font-weight:800; font-size:1.25rem; color:#fff;
+    background:var(--accent); padding:5px 18px; border-radius:999px;
+  }
+  #hud label { font-size:0.82rem; color:var(--sub); font-weight:600; }
+  #hud select {
+    font:inherit; font-weight:700; font-size:0.95rem;
+    padding:5px 12px; border-radius:10px; border:2px solid #cfe3f0; background:#fff; color:var(--ink);
+  }
+  #hud .score { font-weight:800; font-size:1.15rem; color:var(--good); min-width:64px; text-align:center; }
+  #hud .clock { font-weight:800; font-size:1.15rem; color:var(--accent); min-width:64px; text-align:center; font-variant-numeric:tabular-nums; }
+  #hud .clock.hidden { display:none; }
+
+  .balloon {
+    position:absolute; z-index:1;
+    display:flex; align-items:center; justify-content:center;
+    width:var(--bs); height:calc(var(--bs) * 1.18);
+    border-radius:50% 50% 50% 50% / 45% 45% 55% 55%;
+    color:#fff; font-weight:800; font-size:calc(var(--bs) * 0.42);
+    cursor:pointer;
+    box-shadow: inset -6px -8px 0 rgba(0,0,0,0.12);
+    transition: transform .12s;
+  }
+  .balloon::after {
+    content:''; position:absolute; bottom:calc(var(--bs) * -0.28);
+    left:50%; transform:translateX(-50%);
+    width:2px; height:calc(var(--bs) * 0.3);
+    background:rgba(43,74,102,0.35);
+  }
+  .balloon.selected { transform:scale(1.18); box-shadow: inset -6px -8px 0 rgba(0,0,0,0.12), 0 0 0 5px #ffd94d; }
+  .balloon.pop { animation: pop .3s forwards; }
+  .balloon.shake { animation: shake .3s; }
+  @keyframes pop {
+    40% { transform: scale(1.35); }
+    100% { transform: scale(0); opacity:0; }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0) scale(1.18); }
+    25% { transform: translateX(-7px) scale(1.18); }
+    75% { transform: translateX(7px) scale(1.18); }
+  }
+
+  #praise {
+    position:fixed; top:42%; left:50%; transform:translate(-50%,-50%) scale(0);
+    font-size:3rem; font-weight:800; color:var(--good); z-index:5;
+    text-shadow:0 3px 0 rgba(255,255,255,0.8);
+    pointer-events:none;
+  }
+  #praise.show { animation: praise .8s forwards; }
+  @keyframes praise {
+    30% { transform:translate(-50%,-50%) scale(1.2); }
+    60% { transform:translate(-50%,-50%) scale(1); }
+    100% { transform:translate(-50%,-80%) scale(1); opacity:0; }
+  }
+
+  #overlay {
+    position:fixed; inset:0; z-index:20;
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background:rgba(255,255,255,0.88);
+    backdrop-filter: blur(4px);
+  }
+  #overlay.show { display:flex; }
+  #overlay .big { font-size:2.2rem; font-weight:800; color:var(--ink); }
+  #overlay .stars { font-size:3.2rem; font-weight:800; color:var(--good); }
+  #overlay button {
+    font:inherit; font-size:1.1rem; font-weight:700; letter-spacing:0.08em;
+    padding:14px 40px; border-radius:16px; border:none; cursor:pointer;
+    color:#fff; background:var(--accent); box-shadow:0 4px 0 #c9505b;
+  }
+  #overlay button:active { transform:translateY(2px); box-shadow:0 2px 0 #c9505b; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .balloon, .balloon.pop, .balloon.shake, #praise.show { animation:none !important; transition:none; }
+  }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <span class="title">🎈 Make</span>
+    <span class="target" id="targetShow">10</span>
+    <label>Target:
+      <select id="targetSelect">
+        <option>5</option><option>6</option><option>7</option><option>8</option>
+        <option>9</option><option selected>10</option><option>11</option>
+        <option>12</option><option>15</option><option>20</option>
+      </select>
+    </label>
+    <label>Balloons:
+      <select id="comboSelect">
+        <option value="2" selected>2</option>
+        <option value="3">3</option>
+      </select>
+    </label>
+    <label>Timer:
+      <select id="timerSelect">
+        <option value="0" selected>Free play</option>
+        <option value="60">60 sec</option>
+      </select>
+    </label>
+    <span class="clock hidden" id="clock">1:00</span>
+    <span class="score" id="score">⭐ 0</span>
+  </div>
+
+  <div id="praise">Great! 🎉</div>
+
+  <div id="overlay">
+    <div class="big">⏰ Time's up!</div>
+    <div class="stars" id="finalScore">⭐ 0</div>
+    <button id="againBtn">Play Again</button>
+  </div>
+
+<script>
+(function () {
+  const COLORS = ['#f2707a', '#5b8def', '#43a86f', '#f2994a', '#9b6dd6', '#2eb8b0'];
+  const targetSelect = document.getElementById('targetSelect');
+  const comboSelect = document.getElementById('comboSelect');
+  const timerSelect = document.getElementById('timerSelect');
+  const targetShow = document.getElementById('targetShow');
+  const scoreEl = document.getElementById('score');
+  const clockEl = document.getElementById('clock');
+  const praise = document.getElementById('praise');
+  const overlay = document.getElementById('overlay');
+  const finalScore = document.getElementById('finalScore');
+  const againBtn = document.getElementById('againBtn');
+
+  let target = 10;
+  let comboSize = 2;      // 2 or 3 balloons per combo
+  let score = 0;
+  let balloons = [];      // { el, value, x, y, speed, popped }
+  let selected = [];      // array of balloon refs
+  let bs = 76;
+  let frozen = false;
+  let timeLeft = 0;       // seconds; 0 = free play
+  let countdownId = null;
+
+  const COUNT = () => comboSize === 3 ? 10 : 8;
+
+  function hudHeight() { return document.getElementById('hud').offsetHeight; }
+
+  function maxVal() {
+    // leave room so a combo is possible: each other balloon contributes at least 1
+    return Math.max(1, Math.min(10, target - (comboSize - 1)));
+  }
+
+  function randomValue() { return 1 + Math.floor(Math.random() * maxVal()); }
+
+  function aliveValues() { return balloons.filter(b => !b.popped).map(b => b.value); }
+
+  function hasCombo() {
+    const v = aliveValues();
+    if (comboSize === 2) {
+      for (let i = 0; i < v.length; i++)
+        for (let j = i + 1; j < v.length; j++)
+          if (v[i] + v[j] === target) return true;
+      return false;
+    }
+    for (let i = 0; i < v.length; i++)
+      for (let j = i + 1; j < v.length; j++)
+        for (let k = j + 1; k < v.length; k++)
+          if (v[i] + v[j] + v[k] === target) return true;
+    return false;
+  }
+
+  function spawn(value, fromBottom) {
+    const el = document.createElement('div');
+    el.className = 'balloon';
+    el.style.setProperty('--bs', bs + 'px');
+    el.style.background = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const v = value != null ? value : randomValue();
+    el.textContent = v;
+
+    const x = Math.random() * (window.innerWidth - bs);
+    const y = fromBottom
+      ? window.innerHeight + bs
+      : hudHeight() + 10 + Math.random() * (window.innerHeight - hudHeight() - bs * 2);
+
+    const b = { el, value: v, x, y, speed: 0.25 + Math.random() * 0.4, popped: false };
+    el.addEventListener('pointerdown', () => pick(b));
+    document.body.appendChild(el);
+    balloons.push(b);
+    return b;
+  }
+
+  function ensureSolvable() {
+    if (hasCombo()) return;
+    const alive = balloons.filter(b => !b.popped);
+    if (comboSize === 2) {
+      if (alive.length === 0) return;
+      const base = alive[Math.floor(Math.random() * alive.length)];
+      const need = target - base.value;
+      if (need >= 1 && need <= 10) spawn(need, true);
+    } else {
+      // pick a random alive balloon, split the remainder into two valid values
+      if (alive.length === 0) return;
+      const base = alive[Math.floor(Math.random() * alive.length)];
+      const rest = target - base.value;
+      if (rest >= 2) {
+        const a = Math.max(1, Math.min(10, 1 + Math.floor(Math.random() * (rest - 1))));
+        const c = rest - a;
+        if (c >= 1 && c <= 10) { spawn(a, true); spawn(c, true); return; }
+      }
+      // fallback: spawn a fresh trio that works
+      const x = 1 + Math.floor(Math.random() * Math.min(10, target - 2));
+      const remain = target - x;
+      const y2 = Math.max(1, Math.min(10, Math.floor(remain / 2)));
+      const z = remain - y2;
+      if (z >= 1 && z <= 10) { spawn(x, true); spawn(y2, true); spawn(z, true); }
+    }
+  }
+
+  function clearSelection(withShake) {
+    selected.forEach(s => {
+      if (withShake) s.el.classList.add('shake');
+      setTimeout(() => s.el.classList.remove('selected', 'shake'), withShake ? 320 : 0);
+    });
+    selected = [];
+  }
+
+  function pick(b) {
+    if (b.popped || frozen) return;
+    const at = selected.indexOf(b);
+    if (at >= 0) {
+      b.el.classList.remove('selected');
+      selected.splice(at, 1);
+      return;
+    }
+    selected.push(b);
+    b.el.classList.add('selected');
+    if (selected.length < comboSize) return;
+
+    const sum = selected.reduce((acc, s) => acc + s.value, 0);
+    if (sum === target) {
+      const picked = selected;
+      selected = [];
+      picked.forEach(x => {
+        x.popped = true;
+        x.el.classList.remove('selected');
+        x.el.classList.add('pop');
+        setTimeout(() => x.el.remove(), 320);
+      });
+      balloons = balloons.filter(x => !x.popped);
+      score++;
+      scoreEl.textContent = '⭐ ' + score;
+      praise.classList.remove('show');
+      void praise.offsetWidth;
+      praise.classList.add('show');
+      setTimeout(() => {
+        for (let i = 0; i < comboSize; i++) spawn(null, true);
+        ensureSolvable();
+      }, 350);
+    } else {
+      clearSelection(true);
+    }
+  }
+
+  function tick() {
+    if (!frozen) {
+      const top = hudHeight();
+      balloons.forEach(b => {
+        if (b.popped) return;
+        b.y -= b.speed;
+        if (b.y < top + 4) {
+          b.y = window.innerHeight + bs;
+          b.x = Math.random() * (window.innerWidth - bs);
+          b.value = randomValue();
+          b.el.textContent = b.value;
+          const at = selected.indexOf(b);
+          if (at >= 0) { b.el.classList.remove('selected'); selected.splice(at, 1); }
+        }
+        b.el.style.left = b.x + 'px';
+        b.el.style.top = b.y + 'px';
+      });
+      ensureSolvable();
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function fmt(sec) { return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+
+  function stopCountdown() { clearInterval(countdownId); countdownId = null; }
+
+  function startCountdown() {
+    clockEl.textContent = fmt(timeLeft);
+    countdownId = setInterval(() => {
+      timeLeft--;
+      clockEl.textContent = fmt(Math.max(0, timeLeft));
+      if (timeLeft <= 0) {
+        stopCountdown();
+        frozen = true;
+        clearSelection(false);
+        finalScore.textContent = '⭐ ' + score;
+        overlay.classList.add('show');
+      }
+    }, 1000);
+  }
+
+  function reset() {
+    stopCountdown();
+    overlay.classList.remove('show');
+    balloons.forEach(b => b.el.remove());
+    balloons = [];
+    selected = [];
+    frozen = false;
+    score = 0;
+    scoreEl.textContent = '⭐ 0';
+    target = parseInt(targetSelect.value, 10);
+    comboSize = parseInt(comboSelect.value, 10);
+    targetShow.textContent = target;
+    bs = Math.max(56, Math.min(88, Math.floor(window.innerWidth / (comboSize === 3 ? 7 : 6))));
+
+    const t = parseInt(timerSelect.value, 10);
+    if (t > 0) {
+      timeLeft = t;
+      clockEl.classList.remove('hidden');
+      startCountdown();
+    } else {
+      timeLeft = 0;
+      clockEl.classList.add('hidden');
+    }
+
+    for (let i = 0; i < COUNT(); i++) spawn(null, false);
+    ensureSolvable();
+  }
+
+  targetSelect.addEventListener('change', reset);
+  comboSelect.addEventListener('change', reset);
+  timerSelect.addEventListener('change', reset);
+  againBtn.addEventListener('pointerdown', reset);
+  window.addEventListener('resize', () => {
+    balloons.forEach(b => { b.x = Math.min(b.x, window.innerWidth - bs); });
+  });
+
+  reset();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
