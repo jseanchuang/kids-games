@@ -61,7 +61,6 @@
     justify-content: center;
     background: var(--tile);
     color: var(--ink);
-    font-size: clamp(2rem, 8vw, 3.4rem);
     font-weight: 700;
     border-radius: 14px;
     box-shadow: 0 4px 0 rgba(0,0,0,0.35);
@@ -95,6 +94,19 @@
     box-shadow: 0 4px 0 rgba(0,0,0,0.3);
   }
   button:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+  .sizes { display: flex; gap: 10px; }
+  .sizes button {
+    background: var(--panel);
+    color: var(--sub);
+    border: 2px solid var(--tile);
+    padding: 10px 26px;
+    box-shadow: none;
+  }
+  .sizes button.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--bg);
+  }
   @media (prefers-reduced-motion: reduce) {
     .tile { transition: none; }
   }
@@ -102,6 +114,11 @@
 </head>
 <body>
   <h1>Slide Puzzle</h1>
+
+  <div class="sizes">
+    <button data-n="2">2×2</button>
+    <button data-n="3" class="active">3×3</button>
+  </div>
 
   <div class="stats">
     <div class="stat"><div class="label">MOVES</div><div class="value" id="moves">0</div></div>
@@ -114,24 +131,25 @@
 
 <script>
 (function () {
-  const N = 3;
   const board = document.getElementById('board');
   const movesEl = document.getElementById('moves');
   const timeEl = document.getElementById('time');
   const winMsg = document.getElementById('winMsg');
   const shuffleBtn = document.getElementById('shuffleBtn');
+  const sizeBtns = document.querySelectorAll('.sizes button');
 
+  let N = 3;
   let state = [];        // state[i] = tile number, 0 = empty
   let moves = 0;
   let startTime = null;
   let timerId = null;
   let won = false;
-  const tiles = {};      // number -> element
+  let tiles = {};        // number -> element
 
   function pos(i) { return { r: Math.floor(i / N), c: i % N }; }
 
   function tileSize() {
-    return (board.clientWidth - 20) / N; // 10px padding each side
+    return (Math.min(board.clientWidth, board.clientHeight) - 20) / N; // 10px padding each side
   }
 
   function layout() {
@@ -140,15 +158,16 @@
       if (num === 0) return;
       const { r, c } = pos(i);
       const el = tiles[num];
-      el.style.width = (s - 8) + 'px';
-      el.style.height = (s - 8) + 'px';
-      el.style.transform = `translate(${10 + c * s + 4}px, ${10 + r * s + 4}px)`;
+      el.style.width = (s - 10) + 'px';
+      el.style.height = (s - 12) + 'px'; // extra room for the 4px bottom shadow
+      el.style.fontSize = (s * 0.42) + 'px';
+      el.style.transform = `translate(${10 + c * s + 5}px, ${10 + r * s + 4}px)`;
       el.classList.toggle('correct', num === i + 1);
     });
   }
 
   function isSolved() {
-    for (let i = 0; i < 8; i++) if (state[i] !== i + 1) return false;
+    for (let i = 0; i < N * N - 1; i++) if (state[i] !== i + 1) return false;
     return true;
   }
 
@@ -185,11 +204,25 @@
   }
   function stopTimer() { clearInterval(timerId); timerId = null; }
 
+  function buildTiles() {
+    board.innerHTML = '';
+    tiles = {};
+    for (let n = 1; n <= N * N - 1; n++) {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.textContent = n;
+      el.addEventListener('pointerdown', () => tryMove(n));
+      board.appendChild(el);
+      tiles[n] = el;
+    }
+  }
+
   function shuffle() {
     // Start from solved, apply random legal moves => always solvable
-    state = [1,2,3,4,5,6,7,8,0];
-    let empty = 8, prev = -1;
-    for (let k = 0; k < 200; k++) {
+    state = [...Array(N * N - 1).keys()].map(x => x + 1).concat(0);
+    let empty = N * N - 1, prev = -1;
+    const steps = N === 2 ? 30 : 200;
+    for (let k = 0; k < steps; k++) {
       const { r, c } = pos(empty);
       const cand = [];
       if (r > 0) cand.push(empty - N);
@@ -213,19 +246,23 @@
     layout();
   }
 
-  // build tiles once
-  for (let n = 1; n <= 8; n++) {
-    const el = document.createElement('div');
-    el.className = 'tile';
-    el.textContent = n;
-    el.addEventListener('pointerdown', () => tryMove(n));
-    board.appendChild(el);
-    tiles[n] = el;
+  function newGame(n) {
+    N = n;
+    buildTiles();
+    shuffle();
   }
+
+  sizeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      sizeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      newGame(parseInt(btn.dataset.n, 10));
+    });
+  });
 
   window.addEventListener('resize', layout);
   shuffleBtn.addEventListener('click', shuffle);
-  shuffle();
+  newGame(3);
 })();
 </script>
 </body>
