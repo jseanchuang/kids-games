@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>數字推盤 8-Puzzle</title>
+<style>
+  :root {
+    --bg: #10151f;
+    --panel: #1a2230;
+    --tile: #27405e;
+    --tile-hi: #3d6a9e;
+    --ink: #e8eef7;
+    --sub: #8fa3bd;
+    --gold: #f2b54b;
+    --win: #4fd08a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Avenir Next", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.35em;
+    text-indent: 0.35em;
+    color: var(--sub);
+  }
+  .stats {
+    display: flex;
+    gap: 36px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat { text-align: center; }
+  .stat .label { font-size: 0.7rem; letter-spacing: 0.2em; color: var(--sub); }
+  .stat .value { font-size: 1.6rem; font-weight: 700; color: var(--gold); }
+  #board {
+    position: relative;
+    width: min(78vw, 60vh, 460px);
+    height: min(78vw, 60vh, 460px);
+    background: var(--panel);
+    border-radius: 18px;
+    padding: 10px;
+  }
+  .tile {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--tile);
+    color: var(--ink);
+    font-size: clamp(2rem, 8vw, 3.4rem);
+    font-weight: 700;
+    border-radius: 14px;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.35);
+    transition: transform 0.15s ease-out, background 0.2s;
+    cursor: pointer;
+  }
+  .tile:active { background: var(--tile-hi); }
+  .tile.correct { color: var(--gold); }
+  #board.won .tile { background: #1f4d38; color: var(--win); box-shadow: 0 4px 0 rgba(0,0,0,0.25); }
+  #winMsg {
+    min-height: 1.6rem;
+    font-size: 1.1rem;
+    color: var(--win);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  #winMsg.show { opacity: 1; }
+  button {
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--bg);
+    background: var(--gold);
+    border: none;
+    border-radius: 12px;
+    padding: 14px 44px;
+    cursor: pointer;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.3);
+  }
+  button:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,0.3); }
+  @media (prefers-reduced-motion: reduce) {
+    .tile { transition: none; }
+  }
+</style>
+</head>
+<body>
+  <h1>數字推盤</h1>
+
+  <div class="stats">
+    <div class="stat"><div class="label">步數</div><div class="value" id="moves">0</div></div>
+    <div class="stat"><div class="label">時間</div><div class="value" id="time">0:00</div></div>
+  </div>
+
+  <div id="board"></div>
+  <div id="winMsg">🎉 完成！</div>
+  <button id="shuffleBtn">重新開始</button>
+
+<script>
+(function () {
+  const N = 3;
+  const board = document.getElementById('board');
+  const movesEl = document.getElementById('moves');
+  const timeEl = document.getElementById('time');
+  const winMsg = document.getElementById('winMsg');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+
+  let state = [];        // state[i] = tile number, 0 = empty
+  let moves = 0;
+  let startTime = null;
+  let timerId = null;
+  let won = false;
+  const tiles = {};      // number -> element
+
+  function pos(i) { return { r: Math.floor(i / N), c: i % N }; }
+
+  function tileSize() {
+    return (board.clientWidth - 20) / N; // 10px padding each side
+  }
+
+  function layout() {
+    const s = tileSize();
+    state.forEach((num, i) => {
+      if (num === 0) return;
+      const { r, c } = pos(i);
+      const el = tiles[num];
+      el.style.width = (s - 8) + 'px';
+      el.style.height = (s - 8) + 'px';
+      el.style.transform = `translate(${10 + c * s + 4}px, ${10 + r * s + 4}px)`;
+      el.classList.toggle('correct', num === i + 1);
+    });
+  }
+
+  function isSolved() {
+    for (let i = 0; i < 8; i++) if (state[i] !== i + 1) return false;
+    return true;
+  }
+
+  function tryMove(num) {
+    if (won) return;
+    const i = state.indexOf(num);
+    const e = state.indexOf(0);
+    const a = pos(i), b = pos(e);
+    const adjacent = (a.r === b.r && Math.abs(a.c - b.c) === 1) ||
+                     (a.c === b.c && Math.abs(a.r - b.r) === 1);
+    if (!adjacent) return;
+
+    state[e] = num;
+    state[i] = 0;
+    moves++;
+    movesEl.textContent = moves;
+    if (!startTime) startTimer();
+    layout();
+
+    if (isSolved()) {
+      won = true;
+      stopTimer();
+      board.classList.add('won');
+      winMsg.classList.add('show');
+    }
+  }
+
+  function startTimer() {
+    startTime = Date.now();
+    timerId = setInterval(() => {
+      const sec = Math.floor((Date.now() - startTime) / 1000);
+      timeEl.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    }, 500);
+  }
+  function stopTimer() { clearInterval(timerId); timerId = null; }
+
+  function shuffle() {
+    // Start from solved, apply random legal moves => always solvable
+    state = [1,2,3,4,5,6,7,8,0];
+    let empty = 8, prev = -1;
+    for (let k = 0; k < 200; k++) {
+      const { r, c } = pos(empty);
+      const cand = [];
+      if (r > 0) cand.push(empty - N);
+      if (r < N - 1) cand.push(empty + N);
+      if (c > 0) cand.push(empty - 1);
+      if (c < N - 1) cand.push(empty + 1);
+      const pick = cand.filter(x => x !== prev)[Math.floor(Math.random() * cand.filter(x => x !== prev).length)];
+      state[empty] = state[pick];
+      state[pick] = 0;
+      prev = empty;
+      empty = pick;
+    }
+    moves = 0;
+    movesEl.textContent = '0';
+    timeEl.textContent = '0:00';
+    stopTimer();
+    startTime = null;
+    won = false;
+    board.classList.remove('won');
+    winMsg.classList.remove('show');
+    layout();
+  }
+
+  // build tiles once
+  for (let n = 1; n <= 8; n++) {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    el.textContent = n;
+    el.addEventListener('pointerdown', () => tryMove(n));
+    board.appendChild(el);
+    tiles[n] = el;
+  }
+
+  window.addEventListener('resize', layout);
+  shuffleBtn.addEventListener('click', shuffle);
+  shuffle();
+})();
+</script>
+</body>
+</html>
