@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Connect Four</title>
+<style>
+  :root {
+    --bg: #eef3fb;
+    --frame: #2456b3;
+    --frame-dark: #1a4090;
+    --hole: #eef3fb;
+    --ink: #2b3a55;
+    --sub: #7f92b3;
+    --red: #e64545;
+    --red-dark: #b32f2f;
+    --yellow: #f5c518;
+    --yellow-dark: #c99e0a;
+    --win-ring: #2bd97c;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Avenir Next", "PingFang TC", system-ui, sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px; padding:14px; touch-action:manipulation; user-select:none; -webkit-user-select:none;
+  }
+  h1 { font-size:1.35rem; letter-spacing:0.3em; text-indent:0.3em; color:var(--sub); font-weight:600; }
+
+  #turnBar {
+    display:flex; align-items:center; gap:10px;
+    font-size:1.1rem; font-weight:700;
+    padding:10px 26px; border-radius:14px;
+    background:#fff; box-shadow:0 2px 8px rgba(43,58,85,0.12);
+  }
+  .chip {
+    width:22px; height:22px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #ff7d7d, var(--red) 60%, var(--red-dark));
+  }
+  .chip.yellow {
+    background: radial-gradient(circle at 35% 30%, #ffe57a, var(--yellow) 60%, var(--yellow-dark));
+  }
+
+  #boardWrap { position:relative; }
+  #board {
+    position:relative;
+    background: linear-gradient(180deg, var(--frame), var(--frame-dark));
+    border-radius:16px;
+    padding: var(--pad, 10px);
+    box-shadow: 0 8px 0 var(--frame-dark), 0 14px 24px rgba(26,64,144,0.35);
+  }
+  .cell {
+    position:absolute;
+    width: var(--hs); height: var(--hs);
+    border-radius:50%;
+    background: var(--hole);
+    box-shadow: inset 0 3px 6px rgba(0,0,0,0.28);
+  }
+  .disc {
+    position:absolute;
+    width: var(--hs); height: var(--hs);
+    border-radius:50%;
+    transition: transform 0.35s cubic-bezier(0.55, 0, 0.85, 0.6);
+    z-index: 1;
+  }
+  .disc.red { background: radial-gradient(circle at 35% 30%, #ff7d7d, var(--red) 60%, var(--red-dark)); }
+  .disc.yellow { background: radial-gradient(circle at 35% 30%, #ffe57a, var(--yellow) 60%, var(--yellow-dark)); }
+  .disc.winner { box-shadow: 0 0 0 4px var(--win-ring); z-index: 2; }
+  #board { overflow: hidden; }
+
+  .actions { display:flex; gap:12px; }
+  .actions button {
+    font:inherit; font-size:1rem; font-weight:700; letter-spacing:0.08em;
+    padding:13px 34px; border-radius:14px; border:none; cursor:pointer;
+    color:#fff; background:#f2994a; box-shadow:0 3px 0 rgba(0,0,0,0.2);
+  }
+  .actions button:active { transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,0.2); }
+  #hint { min-height:1.2rem; font-size:0.85rem; color:var(--sub); font-weight:600; }
+</style>
+</head>
+<body>
+  <h1>Connect Four</h1>
+
+  <div id="turnBar"><div class="chip" id="turnChip"></div><span id="turnText">Red's turn</span></div>
+
+  <div id="boardWrap"><div id="board"></div></div>
+  <div id="hint">Tap a column to drop your disc!</div>
+
+  <div class="actions">
+    <button id="resetBtn">New Game</button>
+  </div>
+
+<script>
+(function () {
+  const COLS = 7, ROWS = 6;
+  const boardEl = document.getElementById('board');
+  const turnChip = document.getElementById('turnChip');
+  const turnText = document.getElementById('turnText');
+  const hint = document.getElementById('hint');
+  const resetBtn = document.getElementById('resetBtn');
+
+  let grid = [];        // grid[c][r] r=0 bottom ... 'R' | 'Y' | null
+  let player = 'R';
+  let over = false;
+  let animating = false;
+  let hs = 56, gap = 8, pad = 12;
+
+  function calcSize() {
+    const maxW = Math.min(window.innerWidth * 0.94, 560);
+    const maxH = window.innerHeight * 0.55;
+    hs = Math.floor(Math.min(
+      (maxW - pad * 2 - gap * (COLS - 1)) / COLS,
+      (maxH - pad * 2 - gap * (ROWS - 1)) / ROWS
+    ));
+    boardEl.style.setProperty('--hs', hs + 'px');
+    boardEl.style.setProperty('--pad', pad + 'px');
+    boardEl.style.width  = (pad * 2 + COLS * hs + (COLS - 1) * gap) + 'px';
+    boardEl.style.height = (pad * 2 + ROWS * hs + (ROWS - 1) * gap) + 'px';
+  }
+
+  function xy(c, r) {
+    // r = 0 is bottom row; convert to top-based pixel position
+    const rowFromTop = ROWS - 1 - r;
+    return {
+      x: pad + c * (hs + gap),
+      y: pad + rowFromTop * (hs + gap),
+    };
+  }
+
+  function build() {
+    boardEl.innerHTML = '';
+    calcSize();
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const hole = document.createElement('div');
+        hole.className = 'cell';
+        const { x, y } = xy(c, r);
+        hole.style.left = x + 'px';
+        hole.style.top = y + 'px';
+        boardEl.appendChild(hole);
+      }
+    }
+  }
+
+  function newGame() {
+    grid = Array.from({ length: COLS }, () => []);
+    player = 'R';
+    over = false;
+    animating = false;
+    build();
+    updateBar();
+    hint.textContent = 'Tap a column to drop your disc!';
+  }
+
+  function updateBar() {
+    turnChip.className = 'chip' + (player === 'Y' ? ' yellow' : '');
+    turnText.textContent = (player === 'R' ? 'Red' : 'Yellow') + "'s turn";
+  }
+
+  function checkWin(c, r) {
+    const me = grid[c][r];
+    const dirs = [[1,0],[0,1],[1,1],[1,-1]];
+    for (const [dc, dr] of dirs) {
+      const line = [[c, r]];
+      for (const s of [1, -1]) {
+        let cc = c + dc * s, rr = r + dr * s;
+        while (cc >= 0 && cc < COLS && rr >= 0 && rr < ROWS && grid[cc] && grid[cc][rr] === me) {
+          line.push([cc, rr]);
+          cc += dc * s; rr += dr * s;
+        }
+      }
+      if (line.length >= 4) return line;
+    }
+    return null;
+  }
+
+  function drop(c) {
+    if (over || animating) return;
+    const r = grid[c].length;
+    if (r >= ROWS) return;
+
+    grid[c][r] = player;
+    animating = true;
+
+    const disc = document.createElement('div');
+    disc.className = 'disc ' + (player === 'R' ? 'red' : 'yellow');
+    const { x, y } = xy(c, r);
+    disc.style.left = x + 'px';
+    disc.style.top = '0px';
+    disc.style.transform = `translateY(${-hs - pad}px)`;
+    disc.dataset.pos = c + ',' + r;
+    boardEl.appendChild(disc);
+
+    requestAnimationFrame(() => {
+      disc.style.transform = `translateY(${y}px)`;
+    });
+
+    setTimeout(() => {
+      animating = false;
+      const winLine = checkWin(c, r);
+      if (winLine) {
+        over = true;
+        winLine.forEach(([wc, wr]) => {
+          const el = boardEl.querySelector(`[data-pos="${wc},${wr}"]`);
+          if (el) el.classList.add('winner');
+        });
+        turnText.textContent = `🎉 ${player === 'R' ? 'Red' : 'Yellow'} wins!`;
+        hint.textContent = 'Press New Game to play again';
+        return;
+      }
+      if (grid.every(col => col.length >= ROWS)) {
+        over = true;
+        turnText.textContent = "It's a draw!";
+        hint.textContent = 'Press New Game to play again';
+        return;
+      }
+      player = player === 'R' ? 'Y' : 'R';
+      updateBar();
+    }, 380);
+  }
+
+  boardEl.addEventListener('pointerdown', (e) => {
+    const rect = boardEl.getBoundingClientRect();
+    const x = e.clientX - rect.left - pad;
+    const c = Math.floor(x / (hs + gap));
+    if (c >= 0 && c < COLS) drop(c);
+  });
+
+  resetBtn.addEventListener('pointerdown', newGame);
+  window.addEventListener('resize', () => {
+    // rebuild holes and re-place discs at new size
+    const saved = grid.map(col => col.slice());
+    build();
+    saved.forEach((col, c) => col.forEach((p, r) => {
+      const disc = document.createElement('div');
+      disc.className = 'disc ' + (p === 'R' ? 'red' : 'yellow');
+      const { x, y } = xy(c, r);
+      disc.style.left = x + 'px';
+      disc.style.transition = 'none';
+      disc.style.transform = `translateY(${y}px)`;
+      disc.dataset.pos = c + ',' + r;
+      boardEl.appendChild(disc);
+    }));
+    grid = saved;
+  });
+
+  newGame();
+})();
+</script>
+</body>
+</html>
